@@ -1,12 +1,16 @@
 # BoxedWine browser runtime (not included yet)
 
-This directory intentionally does **not** contain a pretend engine, copyrighted game files, or a prebuilt Wine filesystem.
+This directory in the **source tree** contains deployment instructions, not copyrighted game data. The GitHub Pages workflow adds the successfully compiled BoxedWine WebAssembly bundle and, when available, a verified Wine 11 filesystem into the **published website**. These files are staged by GitHub Actions rather than copied into Git history.
 
 The launcher checks for `engine/boxedwine.html`. To enable actual game launch, a **tested Emscripten/WebAssembly BoxedWine build** and its matching Wine filesystem ZIP must be placed here. The web build must support Direct3D 6 / Direct3D 7 through WebGL; use the matching graphics-enabled Wine files rather than a generic DirectDraw-only build.
 
 ## Build workflow
 
-The [experimental GitHub Actions job](../.github/workflows/engine-build.yml) checks out upstream BoxedWine and invokes `make release` in `project/emscripten` with Emscripten. It stages the output as a temporary GitHub Actions artifact. No proprietary game archive is involved. The job is manually triggered and has not yet been run/verified here.
+The [experimental build](../.github/workflows/engine-build.yml) ran successfully on [10 November 2026](https://github.com/SHAD0WDEM0N/TownOfMadness/actions/runs/42907134660) and uploaded its WASM bundle. The [Pages workflow](../.github/workflows/pages.yml) obtains that artifact using GitHub Actions permissions, rebuilds if the artifact expired, and stages it under `site/engine/`. The separate [filesystem downloader](../scripts/fetch_wine_fs.py) tries versioned, SHA-256-verified upstream Wine 11 archives; its `runtime-manifest.json` accurately communicates the result to the launcher.
+
+To view this site publicly, enable **GitHub Pages → GitHub Actions** in repository settings once. The connected GitHub app does not provide a Pages settings API. Then inspect the `Verify and publish web launcher` workflow run. If it reports a missing filesystem, review the checksummed-source download logs and update the tested source list rather than bypassing hash validation.
+
+**First browser boot validation:** On the published site, click **Test Windows boot (Notepad)**; confirm a real Wine Notepad window appears, not just the BoxedWine loading screen. Test on desktop Chromium first. Only after this passes, import the private Midtown Madness ZIP and attempt Open1560. Screenshots or console logs will be needed to diagnose runtime graphics/input errors.
 
 **Note:** Generated `boxedwine.html/js/wasm` alone is not a complete emulator environment. A matching web Wine/Linux filesystem ZIP is still required; it must be acquired or prepared from upstream according to applicable licences. After providing it, test Wine Notepad first, then MM1. GitHub Pages may need additional performance/memory considerations for large runtime assets.
 
