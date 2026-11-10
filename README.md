@@ -26,7 +26,7 @@ python -m http.server 8080
 
 Or deploy with GitHub Pages: **Settings → Pages → Source: GitHub Actions** (one-time administrator setting). Pushes to `main` automatically verify the launcher, attach the previously compiled BoxedWine WASM bundle (or rebuild it when the temporary artifact expires), download a Wine 11 filesystem from BoxedWine's versioned releases with exact byte-count + SHA-256 checks, and publish a standalone site. If the upstream Wine filesystem is unavailable, the website still publishes but correctly displays **Engine setup needed** and does not allow starting a Windows app.
 
-Once the site indicates **Boot test available**, click **Test Windows boot (Notepad)**. A visible Windows Notepad window is the first browser success criterion; a GitHub Actions build success does not demonstrate boot. Then import your private Midtown Madness ZIP and try a game launch.
+Once the site indicates **Boot test available**, click **Test Windows boot (Notepad)**. A visible Windows Notepad window is the first browser success criterion; a GitHub Actions build success does not demonstrate boot. The Pages workflow also attempts a headless Chromium probe and uploads a temporary `BoxedWine-Notepad-Smoke` screenshot/report if a verified root ZIP exists. This evidence needs visual review; the mere appearance of a canvas is not proof of boot. Then import your private Midtown Madness ZIP and try a game launch.
 
 ## Prepare your legally obtained PC installation
 
