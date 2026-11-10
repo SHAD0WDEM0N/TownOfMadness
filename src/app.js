@@ -1,8 +1,8 @@
 import {inspectZip} from "./zip.js";
 
 const catalog = {
-  mm1: {name: "Midtown Madness", exe: "midtown.exe", archive: "townofmadness-mm1"},
-  mm2: {name: "Midtown Madness 2", exe: "midtown2.exe", archive: "townofmadness-mm2"}
+  mm1: {name: "Midtown Madness", executables: ["midtown.exe", "Open1560.exe"], required: ["audio.ar", "core.ar", "ui.ar"], archive: "townofmadness-mm1"},
+  mm2: {name: "Midtown Madness 2", executables: ["midtown2.exe"], required: [], archive: "townofmadness-mm2"}
 };
 const dbName = "townofmadness-v1";
 const storeName = "games";
@@ -74,10 +74,13 @@ function render() {
   const record = records[selected];
   $("setup-title").textContent = game.name;
   $("placeholderTitle").textContent = game.name;
-  $("placeholderDescription").textContent = record ? "Game archive loaded. The runtime must also be ready to play." : "Import the installed PC game folder as a ZIP to begin.";
+  $("placeholderDescription").textContent = record ? (record.exeName?.toLowerCase() === "open1560.exe"
+    ? "Open1560 archive ready. Browser runtime compatibility is experimental and unverified."
+    : "Original Windows game archive ready. The runtime must also be installed.") :
+    "Import the installed PC game folder as a ZIP to begin.";
   $("archiveStatus").textContent = record ?
-    record.fileName + " · " + record.fileCount + " files · " + (record.archiveSize / 1048576).toFixed(1) + " MB" :
-    "No game archive imported. Expected " + game.exe + ".";
+    record.fileName + " · " + record.exeName + " · " + record.fileCount + " files · " + (record.archiveSize / 1048576).toFixed(1) + " MB" :
+    "No game archive imported. Expected " + game.executables.join(" or ") + ".";
   setIndicator("archiveIndicator", Boolean(record));
   $("launchButton").disabled = !(engineReady && bridgeReady && record && !activeSession);
   $("launchButton").textContent = "▶ Launch " + (selected === "mm1" ? "Midtown Madness" : "Midtown Madness 2");
@@ -163,7 +166,7 @@ async function importGame(file) {
   $("importButton").disabled = true;
   $("importButton").textContent = "Inspecting ZIP…";
   try {
-    const details = await inspectZip(file, game.exe);
+    const details = await inspectZip(file, game.executables, game.required);
     log("Validated " + file.name + ": " + details.fileCount + " entries, executable " + details.exePath + ".");
     $("importButton").textContent = "Saving locally…";
     const record = {
@@ -171,6 +174,7 @@ async function importGame(file) {
       blob: file,
       fileName: file.name,
       exePath: details.exePath,
+      exeName: details.exeName,
       fileCount: details.fileCount,
       archiveSize: details.archiveSize,
       updatedAt: Date.now()
@@ -208,7 +212,7 @@ async function startGame() {
   const params = new URLSearchParams({
     app: game.archive,
     p: fullExe,
-    work: workDir,
+    w: workDir,
     resolution: "800x600"
   });
   const launcher = new URL("./engine/boxedwine.html", location.href);
@@ -221,7 +225,7 @@ async function startGame() {
   $("stopButton").hidden = false;
   $("fullscreenButton").disabled = false;
   activeSession = true;
-  log("Started BoxedWine with " + game.exe + ". Boot/playability not confirmed; use runtime console for game faults.");
+  log("Requested BoxedWine launch for " + record.exeName + ". Open1560 uses Windows x86 + SDL3/OpenGL; browser compatibility remains unverified.");
   render();
 }
 
