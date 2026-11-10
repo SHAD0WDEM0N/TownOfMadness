@@ -8,7 +8,7 @@ An independent web-launch experiment for the original Windows PC editions of **M
 
 - Lightweight responsive web launcher with MM1 and MM2 selectable; MM1 is the priority.
 - Private import of installed Windows game folders as standard ZIP archives.
-- Central-directory ZIP inspection that checks for `midtown.exe` (MM1) or `midtown2.exe` (MM2), without extracting or uploading.
+- Central-directory ZIP inspection that checks for `midtown.exe` or `Open1560.exe` (MM1), or `midtown2.exe` (MM2), without extracting or uploading. Midtown Madness 1 also requires `audio.ar`, `core.ar`, and `ui.ar`.
 - Browser-local archive storage in IndexedDB and a Service Worker bridge that makes the ZIP accessible to a future BoxedWine WASM runtime as `townofmadness-mm1.zip` / `townofmadness-mm2.zip`.
 - Launcher integration via the documented BoxedWine `app`, `p`, `work` and `resolution` parameters.
 - Runtime checks, diagnostic console, fullscreen player frame and cleanup.
@@ -27,9 +27,15 @@ Or deploy using GitHub Pages: **Settings → Pages → Source: GitHub Actions**.
 
 ## Prepare your legally obtained PC installation
 
-On Windows, install Midtown Madness 1 using your own game media. Open its installed folder (typically containing `midtown.exe`, game resource files and subdirectories), and ZIP **the whole folder** rather than just the EXE. Import the ZIP via the launcher. For MM2 use the folder containing `midtown2.exe`.
+On Windows, install Midtown Madness 1 using your own game media. Open its installed folder (containing `midtown.exe`, or the Open1560 reconstruction's `Open1560.exe`, plus the original `audio.ar`, `core.ar`, and `ui.ar` assets), and ZIP **the whole folder**. Import the ZIP via the launcher. For MM2 use the folder containing `midtown2.exe`.
+
+**Uploaded-file compatibility check (2026-11-10):** A user-provided `Midtown Madness.7z` was inspected *privately*. It contains a 32-bit Windows `Open1560.exe` and the three required game data files; their SHA-1 digests match the [Open1560 methodology reference](https://github.com/0x1F9F1/Open1560/blob/master/docs/methodology.md). The private 7z was converted to a ZIP for browser import. Neither original archive nor converted ZIP was committed.
 
 An `.iso` or a setup `.exe` by itself is not yet supported. A ZIP that merely contains the ISO will also not work. Large archives may hit Safari/IndexedDB storage limits. The files remain on the user's device and are not uploaded to a server.
+
+## Open1560 compatibility
+
+[Open1560](https://github.com/0x1F9F1/Open1560) is a GPL-3.0 partial reconstruction of Midtown Madness build 1560 that improves Windows support and uses SDL3/OpenGL. It is **not** a WebAssembly browser engine: portions still consist of native x86 assembly. We have added detection and local import for `Open1560.exe` as a 32-bit Windows executable for **experimental** BoxedWine loading. There is no verified browser boot, and we have not redistributed Open1560 or the proprietary Midtown Madness assets.
 
 ## The actual game engine
 
@@ -42,7 +48,7 @@ See [engine/README.md](engine/README.md) for the next runtime-integration phase 
 | Phase | Deliverable | Status |
 | --- | --- | --- |
 | A1 | Responsive launcher, Windows-game ZIP validation, local browser bridge, Pages deployment workflow | Implemented; workflow/browser smoke test pending |
-| A2 | Integrate and test BoxedWine WASM + matching Wine filesystem, launch a known-good non-commercial Windows executable | Pending |
+| A2 | Integrate and test BoxedWine WASM + matching Wine filesystem, launch a known-good non-commercial Windows executable | Pending; local Open1560 ZIP import support added |
 | A3 | Test Midtown Madness 1 from a user-provided installed directory; debug Direct3D, audio, loading and performance | Pending |
 | A4 | Try Midtown Madness 2; add per-game graphics compatibility settings | Pending |
 | A5 | Mobile UX, virtual keyboard/gamepad workarounds and persistent saves after compatibility proof | Pending |
