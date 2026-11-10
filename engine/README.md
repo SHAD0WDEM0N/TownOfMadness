@@ -4,6 +4,12 @@ This directory intentionally does **not** contain a pretend engine, copyrighted 
 
 The launcher checks for `engine/boxedwine.html`. To enable actual game launch, a **tested Emscripten/WebAssembly BoxedWine build** and its matching Wine filesystem ZIP must be placed here. The web build must support Direct3D 6 / Direct3D 7 through WebGL; use the matching graphics-enabled Wine files rather than a generic DirectDraw-only build.
 
+## Build workflow
+
+The [experimental GitHub Actions job](../.github/workflows/engine-build.yml) checks out upstream BoxedWine and invokes `make release` in `project/emscripten` with Emscripten. It stages the output as a temporary GitHub Actions artifact. No proprietary game archive is involved. The job is manually triggered and has not yet been run/verified here.
+
+**Note:** Generated `boxedwine.html/js/wasm` alone is not a complete emulator environment. A matching web Wine/Linux filesystem ZIP is still required; it must be acquired or prepared from upstream according to applicable licences. After providing it, test Wine Notepad first, then MM1. GitHub Pages may need additional performance/memory considerations for large runtime assets.
+
 ## Why this runtime?
 
 BoxedWine is an open-source Windows compatibility emulator with WebAssembly support: https://github.com/danoon2/Boxedwine
