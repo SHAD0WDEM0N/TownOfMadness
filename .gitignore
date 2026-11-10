@@ -7,7 +7,7 @@
 *.msi
 *.zip
 *.7z
-*.rar
+*.rar\n*.ar\n*.dll\n*.pdb\n*.map\n*.ogg\n*.wav\n*.nfo\n*.bat\n*.log
 # Local tooling
 node_modules/
 .DS_Store
