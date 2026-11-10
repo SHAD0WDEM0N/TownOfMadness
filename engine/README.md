@@ -17,7 +17,10 @@ Web launcher configuration: https://github.com/danoon2/Boxedwine/blob/master/bui
 4. In the game launcher, import a locally prepared ZIP of the **already installed** game directory. The ZIP is held in IndexedDB, and the service worker responds to BoxedWine's `townofmadness-mm1.zip` / `townofmadness-mm2.zip` request entirely on-device.
 5. Validate MM1 title screen, graphics mode, game loading, keyboard input, audio, and stability. Record exact failures before testing MM2.
 
-The wrapper passes the upstream parameters `app`, `p`, `work`, and `resolution`. BoxedWine's documented `app` ZIP mount is `c:/files`. Changes in BoxedWine releases may require an adapter update.
+The wrapper passes BoxedWine's documented parameters `app`, `p`, `w` (working directory), and `resolution`. BoxedWine mounts the `app` ZIP under `c:/files`; the private game archive is served by the local service worker, including requests underneath `engine/`.
+
+### Open1560 archive variant
+A supplied MM1 archive contains `Open1560.exe` (32-bit x86 Windows), `SDL3.dll`, and the original `audio.ar`, `core.ar`, and `ui.ar` assets. The launcher now recognizes this variant, but its Windows SDL3/OpenGL 3.2 renderer may not work through BoxedWine's browser graphics layer. Direct source compilation to WASM is not presently viable without replacing native x86 assembly. First prove BoxedWine boots a known-good test program; then attempt this installation, record errors, and consider the original `midtown.exe` with BoxedWine's Direct3D/WebGL path if Open1560 fails.
 
 **Current status:** A1 browser launcher and local ZIP bridge only. No BoxedWine runtime binary is bundled; **Midtown Madness gameplay has not been verified.**
 
