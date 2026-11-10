@@ -8,7 +8,8 @@ function fail(message) {
 
 function isUnsafePath(path) {
   const parts = path.replaceAll("\\", "/").split("/");
-  return path.startsWith("/") || /^[a-z]:/i.test(path) || parts.some((part) => part === "..");
+  const normalized = path.replaceAll("\\", "/");
+  return normalized.startsWith("/") || /^[a-z]:/i.test(normalized) || parts.some((part) => part === "..");
 }
 
 export async function inspectZip(blob, executableName) {
@@ -52,7 +53,7 @@ export async function inspectZip(blob, executableName) {
     if (flags & 1) fail("Password-protected game ZIPs cannot be imported.");
     if (method !== 0 && method !== 8) fail("This ZIP uses an unsupported compression method.");
     const bytes = new Uint8Array(view.buffer, view.byteOffset + index + 46, length);
-    const name = decoder.decode(bytes);
+    const name = decoder.decode(bytes).replaceAll("\\", "/");
     if (isUnsafePath(name)) fail("The archive contains an unsafe relative file path.");
     if (name && !name.endsWith("/")) entries.push(name);
     index += 46 + length + extra + comment;
