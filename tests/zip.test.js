@@ -39,6 +39,7 @@ test("finds the original Windows executable, even inside a folder", async () => 
   const zip = fakeZip(["Midtown Madness/midtown.exe", "Midtown Madness/players/default.cfg"]);
   const result = await inspectZip(zip, "midtown.exe");
   assert.equal(result.exePath, "Midtown Madness/midtown.exe");
+  assert.equal(result.exeName, "midtown.exe");
   assert.equal(result.fileCount, 2);
 });
 test("recognises sequel only when selected", async () => {
@@ -50,4 +51,15 @@ test("rejects unsafe ZIP paths and corrupt data", async () => {
   await assert.rejects(inspectZip(fakeZip(["../midtown.exe"]), "midtown.exe"), /unsafe/);
   await assert.rejects(inspectZip(fakeZip(["\\\\midtown.exe"]), "midtown.exe"), /unsafe/);
   await assert.rejects(inspectZip(new Blob(["not a zip"]), "midtown.exe"), /not a valid ZIP/);
+});
+
+test("accepts Open1560 installations with original asset archives", async () => {
+  const zip = fakeZip(["Midtown Madness/Open1560.exe", "Midtown Madness/audio.ar", "Midtown Madness/core.ar", "Midtown Madness/ui.ar"]);
+  const result = await inspectZip(zip, ["midtown.exe", "Open1560.exe"], ["audio.ar", "core.ar", "ui.ar"]);
+  assert.equal(result.exeName, "Open1560.exe");
+  await assert.rejects(inspectZip(fakeZip(["Open1560.exe", "core.ar"]), ["midtown.exe", "Open1560.exe"], ["audio.ar", "core.ar", "ui.ar"]), /missing required data files/);
+});
+test("prefers classic Windows executable when both exist", async () => {
+  const result = await inspectZip(fakeZip(["Open1560.exe", "midtown.exe"]), ["midtown.exe", "Open1560.exe"]);
+  assert.equal(result.exeName, "midtown.exe");
 });
