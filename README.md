@@ -2,7 +2,7 @@
 
 An independent web-launch experiment for the original Windows PC editions of **Midtown Madness (1999)** and **Midtown Madness 2 (2000)**.
 
-> **Phase A1 — Browser launcher, ZIP inspection, local storage and engine handoff are implemented. Original game boot and gameplay are NOT yet verified. The BoxedWine WASM runtime must still be integrated.**
+> **Phase A2.2 — The browser launcher, private ZIP bridge, and automated BoxedWine WebAssembly deployment are implemented. Original Windows application boot and Midtown Madness gameplay are NOT yet verified.**
 
 ## What is built
 
@@ -11,7 +11,8 @@ An independent web-launch experiment for the original Windows PC editions of **M
 - Central-directory ZIP inspection that checks for `midtown.exe` or `Open1560.exe` (MM1), or `midtown2.exe` (MM2), without extracting or uploading. Midtown Madness 1 also requires `audio.ar`, `core.ar`, and `ui.ar`.
 - Browser-local archive storage in IndexedDB and a Service Worker bridge that makes the ZIP accessible to a future BoxedWine WASM runtime as `townofmadness-mm1.zip` / `townofmadness-mm2.zip`.
 - Launcher integration via the documented BoxedWine `app`, `p`, `work` and `resolution` parameters.
-- Runtime checks, diagnostic console, fullscreen player frame and cleanup.
+- Runtime checks for both the WebAssembly executable and checksum-verified Wine filesystem; diagnostic console, fullscreen player frame, and cleanup.
+- Separate **Test Windows boot (Notepad)** button. This launches Wine's test application without game assets so browser startup can be assessed independently.
 - Dependency-free ZIP inspector tests and GitHub Pages CI workflow.
 
 ## Run the A1 launcher
@@ -23,7 +24,9 @@ python -m http.server 8080
 # visit http://localhost:8080
 ```
 
-Or deploy using GitHub Pages: **Settings → Pages → Source: GitHub Actions**. The workflow will verify and deploy the static launcher on pushes to `main`. Without the runtime files the site is intentionally **not playable**; the missing-engine status is real.
+Or deploy with GitHub Pages: **Settings → Pages → Source: GitHub Actions** (one-time administrator setting). Pushes to `main` automatically verify the launcher, attach the previously compiled BoxedWine WASM bundle (or rebuild it when the temporary artifact expires), download a Wine 11 filesystem from BoxedWine's versioned releases with exact byte-count + SHA-256 checks, and publish a standalone site. If the upstream Wine filesystem is unavailable, the website still publishes but correctly displays **Engine setup needed** and does not allow starting a Windows app.
+
+Once the site indicates **Boot test available**, click **Test Windows boot (Notepad)**. A visible Windows Notepad window is the first browser success criterion; a GitHub Actions build success does not demonstrate boot. Then import your private Midtown Madness ZIP and try a game launch.
 
 ## Prepare your legally obtained PC installation
 
@@ -48,14 +51,14 @@ See [engine/README.md](engine/README.md) for the next runtime-integration phase 
 | Phase | Deliverable | Status |
 | --- | --- | --- |
 | A1 | Responsive launcher, Windows-game ZIP validation, local browser bridge, Pages deployment workflow | Implemented; workflow/browser smoke test pending |
-| A2 | Integrate and test BoxedWine WASM + matching Wine filesystem, launch a known-good non-commercial Windows executable | Pending; local Open1560 ZIP import support added |
+| A2 | Integrate BoxedWine WASM + checked Wine filesystem and launch Wine Notepad in browser | WASM compilation passed; Pages staging + Notepad launch button implemented; filesystem and boot confirmation pending |
 | A3 | Test Midtown Madness 1 from a user-provided installed directory; debug Direct3D, audio, loading and performance | Pending |
 | A4 | Try Midtown Madness 2; add per-game graphics compatibility settings | Pending |
 | A5 | Mobile UX, virtual keyboard/gamepad workarounds and persistent saves after compatibility proof | Pending |
 
 ## Phase A2: build the Windows compatibility runtime
 
-An on-demand GitHub Actions workflow, [Build BoxedWine browser runtime](.github/workflows/engine-build.yml), compiles the upstream single-threaded Emscripten release and uploads a `BoxedWine-WASM-Experimental` workflow artifact. It **does not run automatically** and has **not been build-tested in this project**. The necessary compatible Wine/Linux filesystem ZIP is a separate dependency and must be tested with the generated runtime. Do not mistake a passing compilation for Midtown Madness being playable.
+The [Build BoxedWine browser runtime](.github/workflows/engine-build.yml) workflow compiled successfully on [10 November 2026](https://github.com/SHAD0WDEM0N/TownOfMadness/actions/runs/42907134660), producing the `BoxedWine-WASM-Experimental` artifact. The [Pages workflow](.github/workflows/pages.yml) automatically stages that runtime (or rebuilds from upstream if the artifact expires), attempts to fetch a compatible SHA-256-verified Wine 11 ZIP from [BoxedWine](https://boxedwine.org/), and publishes the site. **Windows Notepad boot, Direct3D/OpenGL compatibility, and actual gameplay remain to be tested in a browser**.
 
 To run a build: **Actions → Build BoxedWine browser runtime (experimental) → Run workflow**. Once completed, download the artifact and follow [engine setup notes](engine/README.md). Do not commit any game data.
 
