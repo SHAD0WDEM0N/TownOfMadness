@@ -19,6 +19,16 @@ SOURCES = [
     ("28", 96903258, "0ef37445a4d31af044a435e6b68f79ba23eaa7197655106f165d89ef5caf950c"),
     ("27", 99650033, "7f24b945165dfdc71cd86ae8a32927e07c32c072fb24711bad338830d283652c"),
     ("26", 99629744, "af2352a3f77dcd2747a1a67cb055962dde1efca546f1998e139ef03212ea13ca"),
+    ("25", 99626437, "f053683d1bd40d524d0136d6d14cb8a45a6b13ce1de4c56916ae4e20fc4cd91b"),
+    ("23", 99514221, "4d505092956dd78e36712dac8111c252e5d1b859ce2373fbe7c80242bb65ad47"),
+    ("22", 99512503, "3781540f59c23f2c4d7f68a64542cf1ef08f0c0baa24cebc9552e34615b4d969"),
+    ("20", 99499113, "21beaeea9566fe214a5d5fd4d605cae467166d1e6cd1458a8e6fef79fe5bb631"),
+    ("18", 99494797, "c56e0a2689bfa7ca076749696bec1f563a75610ebb1481ee4b959e7b23d595e5"),
+    ("17", 99486076, "262671189dddccac04c537715fd5030f23ac08a5bc6742d15206004eeeb9f29d"),
+    ("15", 99466825, "f839ac3d9b85e9f5a102ba6ca3232828d5f47a55399898f220dafa094321103a"),
+    ("14", 99456246, "3365e31caaf6a1fc832a0a7c4812592d25410b9f5c9536277131388c8e103a49"),
+    # Published full Wine 11 fallback for Notepad diagnostics if smaller web roots unavailable.
+    ("11-full", 167152655, "13993bf74c3421304ee50e247ff628ca47d75ae3118e10967a388e8a664aabee"),
 ]
 FILENAME = "TinyCore15Wine11.0-web.zip"
 
@@ -54,7 +64,9 @@ def main():
     }
     root = destination / FILENAME
     for version, size, sha256 in SOURCES:
-        url = f"https://boxedwine.org/v2/{version}/{FILENAME}"
+        release = version.split("-")[0]
+        remote_name = "TinyCore15Wine11.0.zip" if version == "11-full" else FILENAME
+        url = f"https://boxedwine.org/v2/{release}/{remote_name}"
         print(f"Checking BoxedWine Wine 11 web filesystem v{version}: {url}", flush=True)
         try:
             fd, temp_name = tempfile.mkstemp(prefix="townofmadness-wine-", suffix=".zip", dir=destination)
