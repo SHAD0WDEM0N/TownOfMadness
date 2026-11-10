@@ -1,0 +1,10 @@
+{
+  "name": "town-of-madness",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/app.js && node --check src/zip.js && node --check sw.js"
+  }
+}

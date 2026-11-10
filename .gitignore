@@ -1,0 +1,13 @@
+# Don't accidentally commit copyrighted game dumps or installed Windows executables
+*.iso
+*.bin
+*.cue
+*.img
+*.exe
+*.msi
+*.zip
+*.7z
+*.rar
+# Local tooling
+node_modules/
+.DS_Store
