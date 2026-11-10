@@ -12,7 +12,8 @@ function isUnsafePath(path) {
   return normalized.startsWith("/") || /^[a-z]:/i.test(normalized) || parts.some((part) => part === "..");
 }
 
-export async function inspectZip(blob, executableName) {
+export async function inspectZip(blob, executableName, requiredFiles = []) {
+  const executableNames = Array.isArray(executableName) ? executableName : [executableName];
   if (!blob || blob.size < 22) fail("This is not a valid ZIP archive.");
   const tailStart = Math.max(0, blob.size - 65557);
   const tail = new DataView(await blob.slice(tailStart).arrayBuffer());
@@ -58,11 +59,21 @@ export async function inspectZip(blob, executableName) {
     if (name && !name.endsWith("/")) entries.push(name);
     index += 46 + length + extra + comment;
   }
-  const exe = entries.find((name) => name.split("/").pop().toLowerCase() === executableName.toLowerCase());
+  const available = new Map(entries.map((path) => [path.split("/").pop().toLowerCase(), path]));
+  // Prefer the original executable if both versions are present; Open1560 is a fallback.
+  let exe;
+  for (const candidate of executableNames) {
+    if (available.has(candidate.toLowerCase())) {
+      exe = available.get(candidate.toLowerCase());
+      break;
+    }
+  }
   if (!exe) {
     const found = entries.filter((name) => name.toLowerCase().endsWith(".exe")).slice(0, 5);
-    fail("Could not find " + executableName + ". ZIP the complete installed game folder, not just the installer/ISO." +
+    fail("Could not find " + executableNames.join(" or ") + ". ZIP the complete game folder, not an installer/ISO." +
       (found.length ? " Executables found: " + found.join(", ") : ""));
   }
-  return {exePath: exe, fileCount: entries.length, archiveSize: blob.size};
+  const missing = requiredFiles.filter((file) => !available.has(file.toLowerCase()));
+  if (missing.length) fail("The game ZIP is missing required data files: " + missing.join(", ") + ".");
+  return {exePath: exe, exeName: exe.split("/").pop(), fileCount: entries.length, archiveSize: blob.size};
 }
