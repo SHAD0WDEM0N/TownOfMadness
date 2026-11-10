@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm run check
+      - run: python3 -m py_compile scripts/fetch_wine_fs.py
       - run: npm test
 
   deploy:
