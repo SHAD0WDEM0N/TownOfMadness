@@ -48,5 +48,6 @@ test("recognises sequel only when selected", async () => {
 });
 test("rejects unsafe ZIP paths and corrupt data", async () => {
   await assert.rejects(inspectZip(fakeZip(["../midtown.exe"]), "midtown.exe"), /unsafe/);
+  await assert.rejects(inspectZip(fakeZip(["\\\\midtown.exe"]), "midtown.exe"), /unsafe/);
   await assert.rejects(inspectZip(new Blob(["not a zip"]), "midtown.exe"), /not a valid ZIP/);
 });
