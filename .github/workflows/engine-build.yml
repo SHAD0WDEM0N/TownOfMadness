@@ -1,0 +1,60 @@
+name: Build BoxedWine browser runtime (experimental)
+# Runtime binaries only. NEVER add the user's Midtown Madness assets or executables.
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "BoxedWine branch, tag or commit to build"
+        required: true
+        default: "master"
+        type: string
+permissions:
+  contents: read
+jobs:
+  build-web-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out upstream BoxedWine source
+        uses: actions/checkout@v4
+        with:
+          repository: danoon2/Boxedwine
+          ref: ${{ inputs.upstream_ref }}
+          path: boxedwine-upstream
+          persist-credentials: false
+      - name: Install Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+      - name: Build single-threaded WebAssembly release
+        working-directory: boxedwine-upstream/project/emscripten
+        run: make release -j 2
+      - name: Validate and stage browser runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="boxedwine-upstream/project/emscripten/Build/Release"
+          test -s "$output/boxedwine.html"
+          test -s "$output/boxedwine.js"
+          test -s "$output/boxedwine.wasm"
+          mkdir -p runtime-artifact
+          find "$output" -maxdepth 1 -type f -exec cp {} runtime-artifact/ \;
+          cp boxedwine-upstream/license.txt runtime-artifact/BOXEDWINE-LICENSE.txt
+          cat >runtime-artifact/README.txt <<'TXT'
+          BoxedWine Emscripten browser runtime (experimental).
+          Source: https://github.com/danoon2/Boxedwine
+          Output: boxedwine.html, boxedwine.js, boxedwine.wasm and support files.
+          This artifact does NOT include the Wine filesystem ZIP or Midtown Madness.
+          A compatible Wine filesystem is mandatory before the runtime can launch a Windows game.
+          Place the files in TownOfMadness/engine/ after verifying the build.
+          Keep proprietary game executables and original game assets OUT of public GitHub.
+          Open1560.exe browser compatibility is not known.
+          TXT
+          ls -lh runtime-artifact/
+      - name: Upload BoxedWine runtime build
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoxedWine-WASM-Experimental
+          path: runtime-artifact/
+          retention-days: 7
+          if-no-files-found: error
