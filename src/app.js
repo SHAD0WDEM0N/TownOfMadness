@@ -9,6 +9,8 @@ const storeName = "games";
 const $ = (id) => document.getElementById(id);
 let selected = "mm1";
 let engineReady = false;
+const wineRoot = "TinyCore15Wine11.0-web";
+let runtimeVersion = "";
 let bridgeReady = false;
 let activeSession = false;
 const records = {};
@@ -85,6 +87,7 @@ function render() {
   $("launchButton").disabled = !(engineReady && bridgeReady && record && !activeSession);
   $("launchButton").textContent = "▶ Launch " + (selected === "mm1" ? "Midtown Madness" : "Midtown Madness 2");
   $("importButton").disabled = activeSession;
+  $("notepadButton").disabled = !engineReady || activeSession;
   document.querySelectorAll("[data-game]").forEach((button) => {
     const active = button.dataset.game === selected;
     button.classList.toggle("active", active);
@@ -94,20 +97,39 @@ function render() {
 }
 
 async function inspectRuntime() {
+  let message = "BoxedWine WebAssembly bundle is not deployed yet.";
   try {
-    const result = await fetch("./engine/boxedwine.html", {method: "HEAD", cache: "no-store"});
-    engineReady = result.ok && (result.headers.get("content-type") || "").includes("text/html");
-  } catch {
+    const [html, wasm, script, manifestResponse] = await Promise.all([
+      fetch("./engine/boxedwine.html", {method: "HEAD", cache: "no-store"}),
+      fetch("./engine/boxedwine.wasm", {method: "HEAD", cache: "no-store"}),
+      fetch("./engine/boxedwine.js", {method: "HEAD", cache: "no-store"}),
+      fetch("./engine/runtime-manifest.json", {cache: "no-store"})
+    ]);
+    const built = html.ok && wasm.ok && script.ok;
+    const manifest = manifestResponse.ok ? await manifestResponse.json() : null;
+    runtimeVersion = manifest?.filesystem_version || "";
+    if (built && manifest?.ready && manifest.root === wineRoot + ".zip") {
+      const filesystem = await fetch("./engine/" + manifest.root, {method: "HEAD", cache: "no-store"});
+      engineReady = filesystem.ok;
+      message = filesystem.ok ?
+        "BoxedWine WASM + Wine 11 filesystem v" + runtimeVersion + " detected. Ready for Windows boot testing." :
+        "WASM detected, but its Wine filesystem ZIP cannot be reached.";
+    } else if (built) {
+      engineReady = false;
+      message = "WASM detected, but no verified Wine filesystem has been deployed.";
+    } else {
+      engineReady = false;
+    }
+  } catch (error) {
     engineReady = false;
+    message = "Runtime check failed: " + error.message;
   }
-  $("engineStatus").textContent = engineReady ?
-    "BoxedWine launcher found. Graphics compatibility is still unverified." :
-    "BoxedWine WebAssembly build not installed yet (engine/boxedwine.html missing).";
+  $("engineStatus").textContent = message;
   setIndicator("engineIndicator", engineReady);
   $("runtimePill").classList.toggle("ready", engineReady);
   $("runtimePill").classList.toggle("missing", !engineReady);
-  $("runtimePill").lastChild.textContent = engineReady ? "Runtime detected" : "Engine setup needed";
-  if (!engineReady) log("BoxedWine runtime missing. See engine/README.md.");
+  $("runtimePill").lastChild.textContent = engineReady ? "Boot test available" : "Engine setup needed";
+  log(message);
   render();
 }
 
@@ -210,6 +232,7 @@ async function startGame() {
   const lastSlash = fullExe.lastIndexOf("/");
   const workDir = fullExe.slice(0, lastSlash);
   const params = new URLSearchParams({
+    root: wineRoot,
     app: game.archive,
     p: fullExe,
     w: workDir,
@@ -226,6 +249,27 @@ async function startGame() {
   $("fullscreenButton").disabled = false;
   activeSession = true;
   log("Requested BoxedWine launch for " + record.exeName + ". Open1560 uses Windows x86 + SDL3/OpenGL; browser compatibility remains unverified.");
+  render();
+}
+
+function startNotepad() {
+  if (!engineReady || activeSession) return;
+  const launcher = new URL("./engine/boxedwine.html", location.href);
+  launcher.search = new URLSearchParams({
+    root: wineRoot,
+    p: "notepad",
+    resolution: "800x600",
+    "wine-override": "nomono"
+  }).toString();
+  $("gameFrame").src = launcher.toString();
+  $("gameFrame").hidden = false;
+  $("placeholder").hidden = true;
+  $("placeholder").style.display = "none";
+  $("viewportStatus").textContent = "WINE NOTEPAD BOOT REQUESTED";
+  $("stopButton").hidden = false;
+  $("fullscreenButton").disabled = false;
+  activeSession = true;
+  log("Requested Wine Notepad boot with filesystem v" + runtimeVersion + ". Success must be confirmed on screen.");
   render();
 }
 
@@ -253,6 +297,7 @@ function setupEvents() {
   $("importButton").addEventListener("click", () => $("fileInput").click());
   $("fileInput").addEventListener("change", (event) => importGame(event.target.files[0]));
   $("launchButton").addEventListener("click", startGame);
+  $("notepadButton").addEventListener("click", startNotepad);
   $("stopButton").addEventListener("click", stopGame);
   $("fullscreenButton").addEventListener("click", () => {
     const element = $("gameFrame");
@@ -263,5 +308,5 @@ function setupEvents() {
 setupEvents();
 render();
 Promise.allSettled([inspectRuntime(), initializeBridge(), restore()]).then(() => {
-  log("Phase A1 ready for local-archive testing. Game compatibility has not been established.");
+  log("Phase A2.2: runtime and root filesystem checks completed. Windows boot and gameplay remain unverified.");
 });
