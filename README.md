@@ -53,6 +53,12 @@ See [engine/README.md](engine/README.md) for the next runtime-integration phase 
 | A4 | Try Midtown Madness 2; add per-game graphics compatibility settings | Pending |
 | A5 | Mobile UX, virtual keyboard/gamepad workarounds and persistent saves after compatibility proof | Pending |
 
+## Phase A2: build the Windows compatibility runtime
+
+An on-demand GitHub Actions workflow, [Build BoxedWine browser runtime](.github/workflows/engine-build.yml), compiles the upstream single-threaded Emscripten release and uploads a `BoxedWine-WASM-Experimental` workflow artifact. It **does not run automatically** and has **not been build-tested in this project**. The necessary compatible Wine/Linux filesystem ZIP is a separate dependency and must be tested with the generated runtime. Do not mistake a passing compilation for Midtown Madness being playable.
+
+To run a build: **Actions → Build BoxedWine browser runtime (experimental) → Run workflow**. Once completed, download the artifact and follow [engine setup notes](engine/README.md). Do not commit any game data.
+
 ## Development
 
 ```bash
