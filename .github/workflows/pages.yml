@@ -1,15 +1,20 @@
 name: Verify and publish web launcher
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
+
 concurrency:
   group: pages
   cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -20,17 +25,79 @@ jobs:
           node-version: '22'
       - run: npm run check
       - run: npm test
+
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      # Reuse the successful 10 November 2026 BoxedWine WASM build.
+      # Game assets are NEVER uploaded to the site or repository.
+      - name: Reuse compiled BoxedWine browser runtime
+        id: artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: BoxedWine-WASM-Experimental
+          run-id: 42907134660
+          repository: SHAD0WDEM0N/TownOfMadness
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: runtime-cache
+      - name: Check downloaded WASM files
+        id: cached
+        shell: bash
+        run: |
+          if test -s runtime-cache/boxedwine.html && test -s runtime-cache/boxedwine.js && test -s runtime-cache/boxedwine.wasm && test -s runtime-cache/boxedwine-shell.js; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Rebuild on subsequent deployments if the temporary Actions artifact expires.
+      - name: Install Emscripten when cached runtime is unavailable
+        if: steps.cached.outputs.ready != 'true'
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+      - name: Rebuild BoxedWine when cached runtime is unavailable
+        if: steps.cached.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/danoon2/Boxedwine.git /tmp/townofmadness-boxedwine
+          make -C /tmp/townofmadness-boxedwine/project/emscripten release -j 2
+          mkdir -p runtime-cache
+          cp -a /tmp/townofmadness-boxedwine/project/emscripten/Build/Release/. runtime-cache/
+          cp /tmp/townofmadness-boxedwine/license.txt runtime-cache/BOXEDWINE-LICENSE.txt
+
+      - name: Assemble static website and runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/engine
+          cp index.html styles.css sw.js site/
+          cp -a src site/
+          cp -a runtime-cache/. site/engine/
+          test -s site/engine/boxedwine.html
+          test -s site/engine/boxedwine.js
+          test -s site/engine/boxedwine.wasm
+          test -s site/engine/boxedwine-shell.js
+          touch site/.nojekyll
+
+      - name: Obtain checked Wine 11 browser filesystem
+        # A failed upstream download is visible in runtime-manifest.json;
+        # the website still deploys, but will not claim the emulator is ready.
+        run: python3 scripts/fetch_wine_fs.py site/engine
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
-      - id: deployment
+          path: site
+      - name: Deploy GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
