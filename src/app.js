@@ -13,6 +13,8 @@ const wineRoot = "TinyCore15Wine11.0-web";
 let runtimeVersion = "";
 let bridgeReady = false;
 let activeSession = false;
+let startupTimer;
+let importing = false;
 const records = {};
 
 function log(message) {
@@ -77,22 +79,22 @@ function render() {
   $("setup-title").textContent = game.name;
   $("placeholderTitle").textContent = game.name;
   $("placeholderDescription").textContent = record ? (record.exeName?.toLowerCase() === "open1560.exe"
-    ? "Open1560 archive ready. Browser runtime compatibility is experimental and unverified."
+    ? "Open1560 is ready. Launch to play in Chicago."
     : "Original Windows game archive ready. The runtime must also be installed.") :
     "Import the installed PC game folder as a ZIP to begin.";
   $("archiveStatus").textContent = record ?
     record.fileName + " · " + record.exeName + " · " + record.fileCount + " files · " + (record.archiveSize / 1048576).toFixed(1) + " MB" :
     "No game archive imported. Expected " + game.executables.join(" or ") + ".";
   setIndicator("archiveIndicator", Boolean(record));
-  $("launchButton").disabled = !(engineReady && bridgeReady && record && !activeSession);
+  $("launchButton").disabled = !(engineReady && bridgeReady && record && !activeSession && !importing);
   $("launchButton").textContent = "▶ Launch " + (selected === "mm1" ? "Midtown Madness" : "Midtown Madness 2");
-  $("importButton").disabled = activeSession;
-  $("notepadButton").disabled = !engineReady || activeSession;
+  $("importButton").disabled = activeSession || importing;
+  $("notepadButton").disabled = !engineReady || activeSession || importing;
   document.querySelectorAll("[data-game]").forEach((button) => {
     const active = button.dataset.game === selected;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
-    button.disabled = activeSession;
+    button.disabled = activeSession || importing;
   });
 }
 
@@ -112,7 +114,7 @@ async function inspectRuntime() {
       const filesystem = await fetch("./engine/" + manifest.root, {method: "HEAD", cache: "no-store"});
       engineReady = filesystem.ok;
       message = filesystem.ok ?
-        "BoxedWine WASM + Wine 11 filesystem v" + runtimeVersion + " detected. Ready for Windows boot testing." :
+        "BoxedWine and Wine 11 filesystem v" + runtimeVersion + " are available." :
         "WASM detected, but its Wine filesystem ZIP cannot be reached.";
     } else if (built) {
       engineReady = false;
@@ -128,7 +130,7 @@ async function inspectRuntime() {
   setIndicator("engineIndicator", engineReady);
   $("runtimePill").classList.toggle("ready", engineReady);
   $("runtimePill").classList.toggle("missing", !engineReady);
-  $("runtimePill").lastChild.textContent = engineReady ? "Boot test available" : "Engine setup needed";
+  $("runtimePill").lastChild.textContent = engineReady ? "Engine ready" : "Engine setup needed";
   log(message);
   render();
 }
@@ -185,7 +187,8 @@ async function importGame(file) {
   }
   const gameKey = selected;
   const game = catalog[gameKey];
-  $("importButton").disabled = true;
+  importing = true;
+  render();
   $("importButton").textContent = "Inspecting ZIP…";
   try {
     const details = await inspectZip(file, game.executables, game.required);
@@ -208,6 +211,7 @@ async function importGame(file) {
     log("Import failed: " + error.message);
     alert(error.message);
   } finally {
+    importing = false;
     $("fileInput").value = "";
     $("importButton").textContent = "↥ Import / replace game ZIP";
     render();
@@ -218,10 +222,14 @@ async function startGame() {
   const game = catalog[selected];
   const record = records[selected];
   if (!engineReady || !bridgeReady || !record || activeSession) return;
-  const zipUrl = new URL("./" + game.archive + ".zip", location.href);
+  const zipUrl = new URL("./engine/" + game.archive + ".zip", location.href);
   try {
     const check = await fetch(zipUrl, {method: "HEAD", cache: "no-store"});
     if (!check.ok) throw new Error("Local ZIP bridge returned " + check.status + ".");
+    if (check.headers.get("X-TownOfMadness-Source") !== "browser-local" ||
+        Number(check.headers.get("Content-Length")) !== record.blob.size) {
+      throw new Error("Reload this page and import the game ZIP again.");
+    }
   } catch (error) {
     log("Launch blocked: " + error.message);
     alert("The browser could not serve your local ZIP to BoxedWine. " + error.message);
@@ -238,17 +246,48 @@ async function startGame() {
     w: workDir,
     resolution: "800x600"
   });
+  const open1560 = record.exeName.toLowerCase() === "open1560.exe";
+  if (open1560) {
+    params.set("resolution", "640x480");
+    params.set("args", "-sw -window -width 640 -height 480 -cdid");
+  }
   const launcher = new URL("./engine/boxedwine.html", location.href);
   launcher.search = params.toString();
+  // BoxedWine parses env before URL decoding and requires a literal colon.
+  if (open1560) launcher.search += "&env=%22SDL_RENDER_DRIVER:software%22";
   $("gameFrame").src = launcher.toString();
   $("gameFrame").hidden = false;
   $("placeholder").hidden = true;
   $("placeholder").style.display = "none";
-  $("viewportStatus").textContent = "EMULATOR START REQUESTED";
+  $("viewportStatus").textContent = "Loading Wine and game files…";
   $("stopButton").hidden = false;
   $("fullscreenButton").disabled = false;
   activeSession = true;
-  log("Requested BoxedWine launch for " + record.exeName + ". Open1560 uses Windows x86 + SDL3/OpenGL; browser compatibility remains unverified.");
+  log("Starting " + record.exeName + (open1560 ? " with software rendering at 640×480." : "."));
+  $("gameFrame").scrollIntoView({block: "center"});
+  const started = Date.now();
+  startupTimer = setInterval(() => {
+    const output = $("gameFrame").contentDocument?.getElementById("output")?.value || "";
+    const fatal = output.match(/FATAL ERROR:[^\r\n]*/i);
+    let status;
+    if (fatal) {
+      status = fatal[0];
+      clearInterval(startupTimer);
+      log(status);
+    } else if (output.includes("Module init") && output.includes("Load time =")) {
+      status = "Game running";
+      clearInterval(startupTimer);
+    } else if (Date.now() - started > 120000) {
+      status = "Still loading? End session and retry.";
+    } else if (output.includes("Loading 4 archives") || output.includes("Software Renderer:")) {
+      status = "Loading game data…";
+    } else if (output.includes('Launching "/bin/wine"')) {
+      status = "Starting " + record.exeName + "…";
+    } else {
+      status = "Loading Wine and game files… " + Math.floor((Date.now() - started) / 1000) + "s";
+    }
+    $("viewportStatus").textContent = status;
+  }, 1000);
   render();
 }
 
@@ -274,6 +313,7 @@ function startNotepad() {
 }
 
 function stopGame() {
+  clearInterval(startupTimer);
   $("gameFrame").src = "about:blank";
   $("gameFrame").hidden = true;
   $("placeholder").hidden = false;
@@ -307,6 +347,4 @@ function setupEvents() {
 
 setupEvents();
 render();
-Promise.allSettled([inspectRuntime(), initializeBridge(), restore()]).then(() => {
-  log("Phase A2.2: runtime and root filesystem checks completed. Windows boot and gameplay remain unverified.");
-});
+Promise.allSettled([inspectRuntime(), initializeBridge(), restore()]);
