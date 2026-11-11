@@ -66,36 +66,40 @@ async function writeRecord(record) {
   }
 }
 
-function setIndicator(id, ok, unknown = false) {
-  const element = $(id);
-  element.classList.toggle("ok", ok);
-  element.classList.toggle("bad", !ok && !unknown);
-  element.textContent = unknown ? "…" : ok ? "✓" : "×";
-}
-
 function render() {
   const game = catalog[selected];
   const record = records[selected];
+  $("location").textContent = selected === "mm1" ? "Chicago" : "London / San Francisco · Experimental";
   $("setup-title").textContent = game.name;
   $("placeholderTitle").textContent = game.name;
-  $("placeholderDescription").textContent = record ? (record.exeName?.toLowerCase() === "open1560.exe"
-    ? "Open1560 is ready. Launch to play in Chicago."
-    : "Original Windows game archive ready. The runtime must also be installed.") :
-    "Import the installed PC game folder as a ZIP to begin.";
-  $("archiveStatus").textContent = record ?
-    record.fileName + " · " + record.exeName + " · " + record.fileCount + " files · " + (record.archiveSize / 1048576).toFixed(1) + " MB" :
-    "No game archive imported. Expected " + game.executables.join(" or ") + ".";
-  setIndicator("archiveIndicator", Boolean(record));
+  $("placeholderDescription").textContent = record ? "Your local game is ready to launch." :
+    "Import a ZIP of the installed game folder containing " + game.executables.join(" or ") + ".";
+  $("archiveStatus").textContent = record ? record.fileName + " · " + record.exeName + " · " +
+    (record.archiveSize / 1048576).toFixed(1) + " MB" : "";
   $("launchButton").disabled = !(engineReady && bridgeReady && record && !activeSession && !importing);
-  $("launchButton").textContent = "▶ Launch " + (selected === "mm1" ? "Midtown Madness" : "Midtown Madness 2");
+  $("launchButton").textContent = "Launch game";
   $("importButton").disabled = activeSession || importing;
+  if (!importing) $("importButton").textContent = record ? "Replace ZIP" : "Import game ZIP";
   $("notepadButton").disabled = !engineReady || activeSession || importing;
-  document.querySelectorAll("[data-game]").forEach((button) => {
-    const active = button.dataset.game === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-    button.disabled = activeSession || importing;
-  });
+  $("fullscreenButton").disabled = !activeSession || !document.fullscreenEnabled;
+}
+
+function showView() {
+  const id = location.hash.slice(1);
+  const showPlayer = Object.hasOwn(catalog, id);
+  if (activeSession) stopGame();
+  if ($("details").open) $("details").close();
+  $("library").hidden = showPlayer;
+  $("player").hidden = !showPlayer;
+  if (showPlayer) {
+    selected = id;
+    $("setup-title").focus();
+  } else {
+    document.querySelector('a[href="#' + selected + '"]').focus({preventScroll: true});
+  }
+  window.scrollTo(0, 0);
+  document.title = showPlayer ? catalog[selected].name + " · Town of Madness" : "Town of Madness";
+  render();
 }
 
 async function inspectRuntime() {
@@ -127,10 +131,6 @@ async function inspectRuntime() {
     message = "Runtime check failed: " + error.message;
   }
   $("engineStatus").textContent = message;
-  setIndicator("engineIndicator", engineReady);
-  $("runtimePill").classList.toggle("ready", engineReady);
-  $("runtimePill").classList.toggle("missing", !engineReady);
-  $("runtimePill").lastChild.textContent = engineReady ? "Engine ready" : "Engine setup needed";
   log(message);
   render();
 }
@@ -138,7 +138,6 @@ async function inspectRuntime() {
 async function initializeBridge() {
   if (!("serviceWorker" in navigator) || !("indexedDB" in window) || !window.isSecureContext) {
     $("bridgeStatus").textContent = "Requires HTTPS/localhost, Service Workers and IndexedDB.";
-    setIndicator("bridgeIndicator", false);
     log("Local archive bridge unavailable in this browser/context.");
     return;
   }
@@ -157,11 +156,9 @@ async function initializeBridge() {
     await openDatabase().then((db) => db.close());
     bridgeReady = true;
     $("bridgeStatus").textContent = "Ready. Game ZIPs are served privately from this browser.";
-    setIndicator("bridgeIndicator", true);
     log("Local browser ZIP handoff ready.");
   } catch (error) {
     $("bridgeStatus").textContent = "Unavailable: " + error.message;
-    setIndicator("bridgeIndicator", false);
     log("Bridge error: " + error.message);
   }
   render();
@@ -221,7 +218,7 @@ async function importGame(file) {
 async function startGame() {
   const game = catalog[selected];
   const record = records[selected];
-  if (!engineReady || !bridgeReady || !record || activeSession) return;
+  if (!engineReady || !bridgeReady || !record || activeSession || importing) return;
   const zipUrl = new URL("./engine/" + game.archive + ".zip", location.href);
   try {
     const check = await fetch(zipUrl, {method: "HEAD", cache: "no-store"});
@@ -235,6 +232,7 @@ async function startGame() {
     alert("The browser could not serve your local ZIP to BoxedWine. " + error.message);
     return;
   }
+  if ($("player").hidden || catalog[selected] !== game || activeSession) return;
   // BoxedWine mounts the app ZIP at c:/files (see upstream buildFlags.txt).
   const fullExe = "c:/files/" + record.exePath;
   const lastSlash = fullExe.lastIndexOf("/");
@@ -264,7 +262,7 @@ async function startGame() {
   $("fullscreenButton").disabled = false;
   activeSession = true;
   log("Starting " + record.exeName + (open1560 ? " with software rendering at 640×480." : "."));
-  $("gameFrame").scrollIntoView({block: "center"});
+  $("gameFrame").focus();
   const started = Date.now();
   startupTimer = setInterval(() => {
     const output = $("gameFrame").contentDocument?.getElementById("output")?.value || "";
@@ -327,24 +325,30 @@ function stopGame() {
 }
 
 function setupEvents() {
-  document.querySelectorAll("[data-game]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (activeSession) return;
-      selected = button.dataset.game;
-      render();
-    });
+  window.addEventListener("hashchange", showView);
+  $("detailsButton").addEventListener("click", () => $("details").showModal());
+  $("closeDetails").addEventListener("click", () => $("details").close());
+  $("gameFrame").addEventListener("load", () => {
+    if (!activeSession) return;
+    const doc = $("gameFrame").contentDocument;
+    if (!doc?.getElementById("dropzone")) return;
+    // Keep both emulator canvases aligned for rendering and pointer input.
+    const style = doc.createElement("style");
+    style.textContent = "html,body {background:black;color:white} #controls,#console {display:none} " +
+      "#dropzone {padding:0} div.emscripten_border {border:0;width:min(100vw,calc(100vh * var(--boxedwine-canvas-aspect)))}";
+    doc.head.appendChild(style);
   });
   $("importButton").addEventListener("click", () => $("fileInput").click());
   $("fileInput").addEventListener("change", (event) => importGame(event.target.files[0]));
   $("launchButton").addEventListener("click", startGame);
-  $("notepadButton").addEventListener("click", startNotepad);
+  $("notepadButton").addEventListener("click", () => { $("details").close(); startNotepad(); });
   $("stopButton").addEventListener("click", stopGame);
   $("fullscreenButton").addEventListener("click", () => {
-    const element = $("gameFrame");
+    const element = $("stage");
     if (element.requestFullscreen) element.requestFullscreen().catch((error) => log(error.message));
   });
 }
 
 setupEvents();
-render();
+showView();
 Promise.allSettled([inspectRuntime(), initializeBridge(), restore()]);
